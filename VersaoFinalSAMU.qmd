@@ -1,0 +1,506 @@
+---
+title: "Relatório do Serviço de Atendimento Móvel de Urgência SAMU - ANO 2022"
+format: 
+  html:
+    theme: Minty
+editor: visual
+title-block-banner: true
+---
+
+# SAMU
+
+O Serviço de Atendimento Móvel de Urgência SAMU-192 é um Programa do Governo Federal, implantado em municípios brasileiros. O objetivo é chegar precocemente à vítima após ter ocorrido um agravo à sua saúde que possa levar a sofrimento, sequelas ou até mesmo à morte. No Recife, o Samu foi inaugurado em 21 de dezembro de 2001. Atualmente 2 mil atendimentos mensais são realizados, em média. A Capital Pernambucana sedia a Central de Regulação Médica do SAMU Metropolitano do Recife, que além do município sede, regula também as ligações de 17 municípios da Região Metropolitana.\
+\
+
+## Relatório do Ano de 2022
+
+Esse Relatório analisa as solicitações de atendimento recebidas pelo SAMU no ano 2022 e demonstra essas análises através dos gráficos apresentados a seguir.
+
+\*Obs: Devido a mudança do sistema do Samu, os dados publicados a partir de 2016 possuem um formato diferente dos anos anteriores.
+
+\*\*Dados atualizados em 9 de Abril de 2023, 13:41.\
+\
+
+### Variáveis Analisadas:
+
+-   Mês da solicitação
+
+-   Origem do chamado
+
+-   Descrição da situação e do subtipo da situação da solicitação
+
+-   Município e bairro do chamado
+
+-   Sexo do paciente
+
+-   Faixa etária do paciente
+
+-   Motivo do desfecho do atendimento\
+    \
+
+Na seção, Origem do Chamado, alguns termos estão abreviados, devido a formatação utilizada pelo SAMU. E para o melhor entendimento do relatório, vamos descrever quais são as abreviações e seus significados.
+
+-- ESTAB PR - Estabelecimento Privado
+
+-- ESTAB PU - Estabelecimento Público
+
+-- ILPS - Instituições de Longa Permanência para Idosos\
+\
+
+## ANÁLISE INDIVIDUAIS DAS VARIÁVEIS
+
+```{r}
+#| echo: false
+#| warning: false
+pacman::p_load(dplyr, ggplot2, ggThemeAssist, GGally, tidyverse, arules, arulesCBA, arulesViz, caret, rattle, lubridate, data.table, tidyverse, janitor,ade4,arules,forcats, tidyr, ggcorrplot, gt, gtExtras, gtsummary, kableExtra, plotly, ccaPP, lsa, minerva, Rfast, ade4, arules, forcats, utils, stringr, plyr, RColorBrewer, plotrix, graphics, visdat, ggpubr, lattice, corrplot, reactablefmtr)
+
+samu2022 <- read.csv2('http://dados.recife.pe.gov.br/dataset/2676fd74-8b40-4248-a1da-0dc45f176b7b/resource/7c005351-2d14-46cf-b2f0-6622a5553b30/download/ocorrencias2022.csv')
+
+samu2022 <- samu2022 %>% select( -hora_minuto, -endereco, -motivo_finalizacao)
+
+samu2022 <- samu2022 %>% separate(col = data, into = c("ano","mes", "dia"),sep = "-")
+
+samu2022 <- samu2022 %>% select(-ano)
+
+samu2022$idade <- as.integer(samu2022$idade)
+samu2022$mes <- as.integer(samu2022$mes)
+samu2022$dia  <- as.integer(samu2022$dia)
+
+samu2022 <- na.omit(samu2022)
+
+samu2022 <- samu2022[samu2022$municipio != "", ]
+samu2022 <- samu2022[samu2022$bairro != "", ]
+samu2022 <- samu2022[samu2022$origem_chamado != "", ]
+samu2022 <- samu2022[samu2022$tipo != "", ]
+samu2022 <- samu2022[samu2022$subtipo != "", ]
+samu2022 <- samu2022[samu2022$sexo  != "", ]
+samu2022 <- samu2022[samu2022$motivo_desfecho != "", ]
+
+samu2022 <- samu2022[samu2022$origem_chamado != "ELENILDA", ]
+samu2022 <- samu2022[samu2022$origem_chamado != "PROCENTE", ]
+samu2022 <- samu2022[samu2022$origem_chamado != "RROS GOM", ]
+samu2022 <- samu2022[samu2022$origem_chamado != "ANI/ALI", ]
+samu2022 <- samu2022[samu2022$motivo_desfecho != "SEM DESFECHO2022-12-01", ]
+
+samu2022 <- samu2022[samu2022$idade != 163, ]
+samu2022 <- samu2022[samu2022$idade != 177, ]
+samu2022 <- samu2022[samu2022$idade != 178, ]
+samu2022 <- samu2022[samu2022$idade != 320, ]
+samu2022 <- samu2022[samu2022$idade != 337, ]
+samu2022 <- samu2022[samu2022$idade != 354, ]
+samu2022 <- samu2022[samu2022$idade != 385, ]
+samu2022 <- samu2022[samu2022$idade != 445, ]
+samu2022 <- samu2022[samu2022$idade != 446, ]
+samu2022 <- samu2022[samu2022$idade != 487, ]
+samu2022 <- samu2022[samu2022$idade != 500, ]
+samu2022 <- samu2022[samu2022$idade != 558, ]
+samu2022 <- samu2022[samu2022$idade != 723, ]
+samu2022 <- samu2022[samu2022$idade != 747, ]
+samu2022 <- samu2022[samu2022$idade != 888, ]
+
+nomes <- c("Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro")
+
+samu2022$mes <- nomes[samu2022$mes]
+
+ordem_meses <- c("Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro")
+
+samu2022$mes <- factor(samu2022$mes, levels = ordem_meses)
+
+samu2022 <- samu2022 %>% select( dia, mes, origem_chamado, tipo, subtipo, municipio, bairro, sexo, idade, motivo_desfecho)
+
+
+samu2022$origem_chamado  <- as.factor(samu2022$origem_chamado)
+samu2022$tipo  <- as.factor(samu2022$tipo)
+samu2022$subtipo  <- as.factor(samu2022$subtipo)
+samu2022$municipio  <- as.factor(samu2022$municipio)
+samu2022$bairro  <- as.factor(samu2022$bairro)
+samu2022$sexo  <- as.factor(samu2022$sexo)
+samu2022$motivo_desfecho  <- as.factor(samu2022$motivo_desfecho)
+
+limites_faixas_etarias <- c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120)
+
+samu2022$faixa_etaria <- cut(samu2022$idade, breaks = limites_faixas_etarias, labels = c("0-9", "10-19", "20-29", "30-39","40-49","50-59","60-69","70-79","80-89","90-99","100-109","110-119" ), include.lowest = TRUE)
+
+samu2022_1 <- samu2022
+samu2022_2 <- samu2022
+
+theme_set(theme_light())
+
+```
+
+### Solicitações de Atendimento por Sexo do Paciente
+
+```{r}
+#| echo: false
+#| warning: false
+ggplot(data = samu2022, aes(x = sexo, fill = sexo)) + 
+  geom_bar() +
+  geom_text(
+    aes(label = after_stat(count), y = after_stat(count)),
+    stat = "count",
+    vjust = -0.5,
+    position = position_stack(vjust = 1)
+  ) + labs( x = 'SEXO DO PACIENTE', y = "")+ guides(fill = FALSE)
+
+```
+
+-   No ano de 2022, tivemos mais atendimentos de pacientes do sexo masculino, com cerca de 15 mil atendimento a mais que o sexo feminino.\
+    \
+
+### Solicitações de Atendimento por Faixa Etária do Paciente
+
+```{r}
+#| echo: false
+contagens <- table(samu2022$faixa_etaria)
+contagens_df <- data.frame(faixa_etaria = names(contagens), count = as.numeric(contagens))
+p <- ggplot(data = samu2022, aes(x = faixa_etaria, fill = faixa_etaria)) + 
+  geom_bar()
+p + geom_text(data = contagens_df, aes(x = faixa_etaria, y = count, label = count), vjust = -0.5, size=3) + labs( x = 'FAIXA ETÁRIA DO PACIENTE', y = "")+ guides(fill = FALSE)
+
+
+```
+
+-   As três faixas etárias que mais solicitaram atendimento ao SAMU foram: 20-29, 30-39 e 40-49.\
+    \
+
+### Solicitações de Atendimento por Mês
+
+```{r}
+#| echo: false
+contagens1 <- table(samu2022$mes)
+contagens_df1 <- data.frame(mes = names(contagens1), count = as.numeric(contagens1))
+p1 <- ggplot(data = samu2022, aes(x = mes, fill = mes)) + 
+  geom_bar()
+p1 + geom_text(data = contagens_df1, aes(x = mes, y = count, label = count), vjust = -0.5, size=3) + labs( x = 'MÊS DA SOLICITAÇÃO', y = "")+ guides(fill = FALSE)
+
+```
+
+-   Os três meses em que o SAMU fez mais atendimento foram: janeiro, junho e maio.\
+    \
+
+### Solicitações de Atendimento por Descrição da Situação
+
+```{r}
+#| echo: false
+contagens2 <- table(samu2022$tipo)
+contagens_df2 <- data.frame(tipo = names(contagens2), count = as.numeric(contagens2))
+p2 <- ggplot(data = samu2022, aes(x = tipo, fill = tipo)) + 
+  geom_bar()
+p2 + geom_text(data = contagens_df2, aes(x = tipo, y = count, label = count), hjust = 0.3, vjust = 0.5, size=3) + labs( x = 'DESCRIÇÃO DA SITUAÇÃO', y = "")+ guides(fill = FALSE) + coord_flip() 
+
+```
+
+-   As três maiores situações atendidas pelo SAMU foram: gerais/outros, causas externas e neurologia.\
+    \
+
+### Solicitações de Atendimento por Descrição do Subtipo da Situação
+
+```{r}
+#| echo: false
+contagens_subtipo <- table(samu2022$subtipo)
+contagens_df11 <- data.frame(subtipo = names(contagens_subtipo), count = as.numeric(contagens_subtipo))
+contagens_df11 <- contagens_df11[order(-contagens_df11$count), ]
+top_20_subtipos <- head(contagens_df11, 20)
+samu2022_filtrado3 <- samu2022 %>%
+  filter(subtipo %in% top_20_subtipos$subtipo)
+ggplot(data = samu2022_filtrado3) + 
+  geom_bar(mapping = aes(x = subtipo, fill = subtipo)) +
+  guides(fill = FALSE) +
+  coord_flip() + geom_text(data = top_20_subtipos, aes(x = subtipo, y = count, label = count), hjust = 0.4, vjust = 0.5, size=3) + labs( x = 'DESCRIÇÃO DO SUBTIPO DA SITUAÇÃO', y = "")+ guides(fill = FALSE)
+
+```
+
+-   Os três maiores subtipos de situações atendidas pelo SAMU foram: outros, acidente de trâsito envolvendo moto e queda da própria altura.\
+    \
+
+### Solicitações de Atendimento por Origem do Chamado
+
+```{r}
+#| echo: false
+ggplot(data = samu2022, aes(x = origem_chamado, fill = origem_chamado)) + 
+  geom_bar() +
+  geom_text(stat = "count", aes(label = after_stat(count), vjust = -0.5), size = 3) + labs( x = 'ORIGEM DO CHAMADO', y = "") + guides(fill = FALSE)
+
+```
+
+-   As três maiores origens de chamado atendidas pelo SAMU foram: residencial, unidade de saúde e via pública.\
+    \
+
+### Os 20 Municípios com Mais Solictações de Atendimento
+
+```{r}
+#| echo: false
+contagens_municipio <- table(samu2022$municipio)
+contagens_df3 <- data.frame(municipio = names(contagens_municipio), count = as.numeric(contagens_municipio))
+contagens_df3 <- contagens_df3[order(-contagens_df3$count), ]
+top_20_municipios <- head(contagens_df3, 20)
+samu2022_filtrado <- samu2022 %>%
+  filter(municipio %in% top_20_municipios$municipio)
+ggplot(data = samu2022_filtrado) + 
+  geom_bar(mapping = aes(x = municipio, fill = municipio)) +
+  guides(fill = FALSE) +
+  coord_flip() + geom_text(data = top_20_municipios, aes(x = municipio, y = count, label = count), hjust = 0.3, vjust = 0.5, size=3) + labs( x = 'MUNICÍPIOS DAS SOLICITAÇÕES', y = "")
+
+```
+
+-   Os três municípios mais atendidos pelo SAMU foram: Recife, Jaboatão dos Guararapes e Olinda.\
+    \
+
+### Os 20 Bairros com Mais Solictações de Atendimento
+
+```{r}
+#| echo: false
+contagens_bairro <- table(samu2022$bairro)
+contagens_df10 <- data.frame(bairro = names(contagens_bairro), count = as.numeric(contagens_bairro))
+contagens_df10 <- contagens_df10[order(-contagens_df10$count), ]
+top_20_bairros <- head(contagens_df10, 20)
+samu2022_filtrado2 <- samu2022 %>%
+  filter(bairro %in% top_20_bairros$bairro)
+ggplot(data = samu2022_filtrado2) + 
+  geom_bar(mapping = aes(x = bairro, fill = bairro)) +
+  guides(fill = FALSE) +
+  coord_flip() + geom_text(data = top_20_bairros, aes(x = bairro, y = count, label = count), hjust = 0.3, vjust = 0.5, size=3) + labs( x = 'BARRIOS DAS SOLICITAÇÕES', y = "")
+
+```
+
+-   Os três bairros mais atendidos pelo SAMU foram: Centro, Boa Viagem e Ibura.\
+    \
+
+## ANÁLISE CRUZADAS DAS VARIÁVEIS
+
+### Mês da Solicitação X Sexo do Paciente
+
+```{r}
+#| echo: false
+soli_sexo <- ggplot(data = samu2022) + 
+  geom_bar(mapping = aes(x = mes, fill = sexo)) + labs( x = 'MÊS DA SOLICITAÇÃO', y = "") + scale_fill_discrete (name="SEXO DO PACIENTE") + coord_flip()
+ggplotly(soli_sexo)
+
+```
+
+### Faixa Etária do Paciente X Sexo do Paciente
+
+```{r}
+#| echo: false
+faixa_sexo <- ggplot(data = samu2022) + 
+  geom_bar(mapping = aes(x = faixa_etaria, fill = sexo)) + labs( x = 'FAIXA ETÁRIA DO PACIENTE', y = "") + scale_fill_discrete(name="SEXO DO PACIENTE") + coord_flip()
+ggplotly(faixa_sexo)
+
+```
+
+### Descrição da Situação X Sexo do Paciente
+
+```{r}
+#| echo: false
+situ_sexo <- ggplot(data = samu2022) + 
+  geom_bar(mapping = aes(x = tipo, fill = sexo)) + labs( x = 'DESCRIÇÃO DA SITUAÇÃO', y = "") + scale_fill_discrete(name="SEXO DO PACIENTE") + coord_flip()
+ggplotly(situ_sexo)
+
+```
+
+### Origem do Chamado X Sexo do Paciente
+
+```{r}
+#| echo: false
+ori_sexo <- ggplot(data = samu2022) + 
+  geom_bar(mapping = aes(x = origem_chamado, fill = sexo)) + labs( x = 'ORIGEM DO CHAMADO', y = "") + scale_fill_discrete(name="SEXO DO PACIENTE") + coord_flip()
+ggplotly(ori_sexo)
+
+```
+
+### Mês da Solicitação X Faixa Etária do Paciente
+
+```{r}
+#| echo: false
+soli_faixa <- ggplot(data = samu2022) + 
+  geom_bar(mapping = aes(x = mes, fill = faixa_etaria)) + labs( x = 'MÊS DA SOLICITAÇÃO', y = "") + scale_fill_discrete(name=" FAIXA ETÁRIA DO PACIENTE") + coord_flip()
+ggplotly(soli_faixa)
+
+```
+
+### Descrição da Situação X Faixa Etária do Paciente
+
+```{r}
+#| echo: false
+situ_faixa <- ggplot(data = samu2022) + 
+  geom_bar(mapping = aes(x = tipo, fill = faixa_etaria)) + labs( x = 'DESCRIÇÃO DA SITUAÇÃO', y = "") + scale_fill_discrete(name=" FAIXA ETÁRIA DO PACIENTE")  + coord_flip() 
+ggplotly(situ_faixa)
+
+```
+
+### Origem do Chamado X Faixa Etária do Paciente
+
+```{r}
+#| echo: false
+ori_faixa <- ggplot(data = samu2022) + 
+  geom_bar(mapping = aes(x = origem_chamado, fill = faixa_etaria)) + labs( x = 'ORIGEM DO CHAMADO', y = "") + scale_fill_discrete(name=" FAIXA ETÁRIA DO PACIENTE") + coord_flip()
+ggplotly(ori_faixa)
+
+```
+
+### Mês da Solicitação X Origem do Chamado
+
+```{r}
+#| echo: false
+soli_ori <- ggplot(data = samu2022) + 
+  geom_bar(mapping = aes(x = mes, fill = origem_chamado)) + labs( x = 'MÊS DA SOLICITAÇÃO', y = "") + scale_fill_discrete(name=" ORIGEM DO CHAMADO")+ coord_flip()
+ggplotly(soli_ori)
+
+```
+
+### Descrição da Situação X Origem do Chamado
+
+```{r}
+#| echo: false
+situ_ori <- ggplot(data = samu2022) + 
+  geom_bar(mapping = aes(x = tipo, fill = origem_chamado))  + labs( x = 'DESCRIÇÃO DA SITUAÇÃO', y = "") + scale_fill_discrete(name=" ORIGEM DO CHAMADO") + coord_flip()
+ggplotly(situ_ori)
+
+```
+
+### Descrição da Situação X Mês da Solicitação
+
+```{r}
+#| echo: false
+situ_soli <- ggplot(data = samu2022) + 
+  geom_bar(mapping = aes(x = tipo, fill = mes)) + labs( x = 'DESCRIÇÃO DA SITUAÇÃO', y = "") + scale_fill_discrete(name= 'MÊS DA SOLICITAÇÃO') + coord_flip()
+ggplotly(situ_soli)
+
+```
+
+## CORRELAÇÃO DAS VARIÁVEIS NUMÉRICAS
+
+A correlação é geralmente calculada para variáveis numéricas e não para variáveis categóricas. A correlação, como medida estatística, é usada para avaliar o grau de associação linear entre duas variáveis contínuas. Ao definir a variável como categórica, o R não irá tratar como numéricar. Em nossa base as variáveis são categóricas, dessa maneira não faz sentido calcular a correlação entre elas, pois não há valor numérico que possa ser usado para calcular uma correlação linear.
+
+### Gráfico de Draftman
+
+```{r}
+#| echo: false
+samu2002_3 <- samu2022 %>% select( tipo, sexo, faixa_etaria)
+
+pairs(samu2002_3)
+
+```
+
+## MINERAÇÃO DADOS E PREDIÇÃO COM ÁRVORE DE DECISÃO
+
+É uma abordagem de análise de dados e aprendizado de máquina que utiliza um modelo para extrair informações úteis a partir de conjuntos de dados e fazer previsões.
+
+### Parâmetros de Complexidade
+
+```{r}
+#| echo: false
+
+samu2022_1 <- samu2022_1 %>% select( origem_chamado, tipo, sexo, faixa_etaria)
+
+particaoSAMU = createDataPartition(1:nrow(samu2022_1), p=0.7)
+treinoSAMU = samu2022_1[particaoSAMU$Resample1, ] 
+testeSAMU = samu2022_1[-particaoSAMU$Resample1, ] 
+
+
+train.control <- trainControl(method = "cv", number = 100, verboseIter = T) 
+
+SAMU_RPART <- train(
+  faixa_etaria ~ tipo + origem_chamado + sexo,
+  data = treinoSAMU, 
+  method = "rpart", 
+  tuneGrid = expand.grid(cp = c(0.00362, runif(19, 0, 0.25))))
+
+plot(SAMU_RPART)
+
+
+```
+
+### Desenho da Árvore de Decisão
+
+```{r}
+#| echo: false
+fancyRpartPlot(SAMU_RPART$finalModel)
+
+```
+
+### Importância das Variáveis
+
+```{r}
+#| echo: false
+#| message: false
+plot(varImp(SAMU_RPART))
+     
+```
+
+### As 20 variáveis mais importantes
+
+```{r}
+#| echo: false
+#| message: false
+varImp(SAMU_RPART, scale = T)
+
+```
+
+### Teste de Performance da Árvore Condicional
+
+```{r}
+#| echo: false
+predicaoTree = predict(SAMU_RPART, newdata = testeSAMU)
+
+postResample(testeSAMU[ , 4], predicaoTree)
+
+```
+
+## REGRAS DE ASSOCIAÇÃO
+
+É um conceito importante na mineração de dados e análise de padrões. Elas representam relações frequentes entre itens ou características em conjuntos de dados.
+
+### Mineração de Dados com Apriori
+
+```{r}
+#| echo: false
+samu2022_2 <- samu2022_2 %>% select( origem_chamado, tipo, sexo, faixa_etaria)
+
+associacaoSAMU <- apriori(samu2022_2, parameter = list(supp = 0.2, conf = 0.5, maxlen = 10))
+
+
+```
+
+### Regras de Associção
+
+```{r}
+#| echo: false
+inspect(associacaoSAMU)
+
+```
+
+### Gráfico de Coordenadas
+
+```{r}
+#| echo: false
+associacaoSAMUPrin <- head(associacaoSAMU, n = 10, by = "lift")
+plot(associacaoSAMUPrin, method = "paracoord")
+
+```
+
+### Método Grafo
+
+```{r}
+#| echo: false
+plot(head(sort(associacaoSAMUPrin, by = "lift"), 10),
+     method = "graph")
+
+```
+
+### Matriz de Confusão e Estatísticas
+
+```{r}
+#| echo: false
+#| message: false
+
+particaoSAMU1 = createDataPartition(1:nrow(samu2022_2), p=0.7) # cria a partição 70-30
+treinoSAMU1 = samu2022_2[particaoSAMU1$Resample1, ] 
+testeSAMU1 = samu2022_2[-particaoSAMU1$Resample1, ] 
+regrasSAMU1 = arulesCBA::CBA(faixa_etaria ~ ., treinoSAMU1, supp=0.2, conf=0.5)
+
+predicaoRegrasSAMU1 <- predict(regrasSAMU1, testeSAMU1)
+
+confusionMatrix(predicaoRegrasSAMU1, testeSAMU1$faixa_etaria)
+
+```
